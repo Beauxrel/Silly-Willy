@@ -1,0 +1,425 @@
+; AddTwo.asm - adds two 32-bit integers.
+; Chapter 3 example
+
+.386
+.model flat, stdcall
+.stack 4096
+ExitProcess PROTO, dwExitCode:DWORD
+include Irvine32.inc
+
+.data
+;==============================================================================
+input_string_msg			db 'Please enter a string of at most 50 characters. Type <enter> to terminate your string.', 0Ah, 0Dh, 0
+enter_function_msg			db 'Please enter a function from the following menu:', 0Ah, 0
+function_description_msg_1	db 'Function 1: Determine the position of the 1st occurrence of a user-input character in the string.', 0Ah, 'Function 2: Find the number of occurrences of a certain letter in a string', 0Ah, 'Function 3: Find the length of the input string (including spaces).', 0Ah, 'Function 4: Find the number of alphanumeric characters of the input string', 0Ah, 'Function 5: Replace every occurrence of a certain letter with another symbol', 0Ah, 0
+function_description_msg_2	db 'Function 6: Capitalize letters in the string (non-alphabetic characters unchanged)', 0Ah, 0Dh, 'Function 7: Make each letter lower case (non-alphabetic characters unchanged)', 0Ah, 'Function 8: Toggle the case of each letter (non-alphabetic characters unchanged)', 0Ah, 'Function 9: Undo the last function', 0Ah, 'Function 10: input a new string', 0Ah, 'Function 0: Output the menu again, prompt for a new function', 0Ah, 'Function 999: Exit program normally', 0Ah, 0Ah, 0Dh, 0
+invalid_function_input_msg	db 'Invalid function number, try again.', 0Ah, 0
+input_function_msg			db 'Enter a function #: ', 0
+
+position_input_msg			db 'Enter the character of which to find the position: ', 0
+occurrence_input_msg		db 'Enter the character of which to find the occurrence: ', 0
+replace_input_msg			db 'Enter the character of which to replace: ', 0
+Replace_msg					db 'Enter the replacement character: ',0
+Function_3_and_4_pt1		db 'There are ', 0
+Function_3_pt2				db ' characters within the string ', 0
+Function_4_pt2				db ' alphanumeric characters within the string. ', 0
+String_end					db ' ', 0
+Upcase_input_msg			db 'Your new string is: ',0
+Togglecase_input_msg		db 'Toggled string is: ',0
+
+;==============================================================================
+user_string db 50 dup (?)
+old_user_string db 50 dup (?)
+string_length dd ?
+;==============================================================================
+
+.code
+main PROC
+
+String_Input:
+	mov edx, offset input_string_msg
+	call WriteString
+	mov ecx, 50
+	mov edx, offset user_string
+	call ReadString
+	mov string_length, eax
+
+
+
+Description:
+	mov edx, offset enter_function_msg
+	call WriteString
+	mov edx, offset function_description_msg_1
+	call WriteString
+	mov edx, offset function_description_msg_2
+	call WriteString
+
+Function_Input:
+	mov edx, offset input_function_msg
+	call WriteString
+	call ReadInt
+
+	cmp eax, 0			
+	je Description
+	cmp eax, 1
+	je Position
+	cmp eax, 2
+	je Count_Occurrences
+	cmp eax, 3
+	je Find_Length
+	cmp eax, 4
+	je Num_Chars
+	cmp eax, 5
+	je Replace
+	cmp eax, 6
+	je Upcase
+	cmp eax, 7
+	je Downcase
+	cmp eax, 8
+	je Togglecase
+	cmp eax, 9
+	je Undo
+	cmp eax, 10	; Function 10: input a new string
+	je String_Input 
+	cmp eax, 999
+	je Finish
+
+	; Function number is invalid, repeat function number input
+	mov edx, offset invalid_function_input_msg 
+	call WriteString
+	jmp Function_Input
+
+Print:
+	mov edx, offset user_string
+	call ReadString
+;=================================================================================================
+
+Position: ; Function 1: Determine the position (0-indexed) of the 1st occurrence of a user-inputcharacter (prompt for character input) is in the string. Spaces count as a character. 
+	xor eax, eax
+	mov edx, offset position_input_msg
+	call WriteString
+	call ReadChar
+	call WriteChar
+	call crlf
+	mov esi, 0
+	mov edx, offset user_string
+	mov ecx, string_length
+
+Pos_Loop:
+	mov ebx, [edx + esi]
+	cmp al, bl
+	je Pos_Found
+	inc esi
+	dec cl
+	jcxz Pos_Not_Found
+	jmp Pos_Loop
+
+Pos_Found:
+	mov ax,si
+	call WriteDec
+	call crlf
+	jmp Function_Input
+
+Pos_Not_Found:
+	jmp Function_Input
+;=================================================================================================
+
+Count_Occurrences: ; Function 2: Find the number of occurrences of a certain letter in a string
+	xor eax, eax
+	mov edx, offset occurrence_input_msg
+	call writeString
+	call readChar
+	call writeChar
+	call crlf
+	mov esi, 0
+	mov edi, 0
+	mov edx, offset user_string
+	mov ecx, string_length
+	
+Count_Loop:
+	mov ebx, [edx + esi]
+	cmp al, bl
+	je Increment_F2
+	inc esi
+	dec cl
+	jcxz Count_Done
+	jmp Count_Loop
+
+Increment_F2:
+	inc esi
+	inc edi
+	dec cl
+	jcxz Count_Done
+	jmp Count_loop
+
+Count_Done:
+	mov ax, di
+	call writeDec
+	call crlf
+	jmp Function_Input
+;=================================================================================================	
+	
+Find_Length: ; Function 3: Find the length of the input string (including spaces).
+	Mov edx, offset Function_3_and_4_pt1 
+	Call writestring
+	Mov eax, string_length
+	Call writedec
+	Mov edx, offset Function_3_pt2
+	Call writestring
+	Mov edx, offset user_string
+	Call writestring
+	Mov edx, offset String_end
+	Call writestring
+	Call crlf
+	Jmp Function_Input
+	
+Num_Chars: ; Function 4: Find the number of alphanumeric characters of the input string.
+	Xor eax, eax
+	mov esi, 0
+	mov edi, 0
+	mov edx, offset user_string
+	mov ecx, string_length
+
+Count_Loop_F4:
+	mov eax, [edx + esi]
+	cmp al, 30h
+	jge alphanumeric_checker
+	Count_Loop_F4_pt2:
+	inc esi
+	dec cl
+	jcxz Count_Done_F4
+	jmp Count_Loop_F4
+
+Alphanumeric_checker:
+	Cmp al, 39h
+	Jle Increment_F4
+	Cmp al, 41h
+	Jl Count_Loop_F4_pt2
+	Cmp al, 5Ah
+	Jle Increment_F4
+	Cmp al, 61h
+	Jl Count_Loop_F4_pt2
+	Cmp al, 7Ah
+	Jle Increment_F4
+	Jmp Count_Loop_F4_pt2
+
+Increment_F4:
+	inc esi
+	inc edi
+	dec cl
+	jcxz Count_Done_F4
+	jmp Count_loop_F4
+
+Count_Done_F4:
+	Mov edx, offset Function_3_and_4_pt1 
+	Call writestring
+	Mov eax, edi
+	Call writedec
+	Mov edx, offset Function_4_pt2
+	Call writestring
+	Mov edx, offset user_string
+	Call writestring
+	Mov edx, offset String_end
+	Call writestring
+	Call crlf
+	jmp Function_Input
+;=================================================================================================
+
+Replace: ; Function 5: Replace every occurrence of a certain letter with another symbol (casesensitive; D remains unchanged in the example, while d is replaced)
+	xor eax, eax
+	mov edx, offset replace_input_msg
+	call writeString
+	call readChar
+	call writeChar
+	call crlf
+	push ax
+	mov edx, offset Replace_msg
+	call writeString
+	call readChar
+	call writeChar
+	call crlf
+	mov dl, al
+	mov esi, offset user_string
+	mov ecx, string_length
+	pop ax
+	
+Replace_Loop:
+	mov ebx, [esi * 1]
+	cmp al, bl
+	jne Increment_F5
+	mov [esi], dl 
+	cmp ebx, '0'
+	je Replace_Done
+	inc esi
+	dec cl
+	jcxz Replace_Done
+	jmp Replace_Loop
+
+Increment_F5:
+	inc esi
+	dec cl
+	jcxz Replace_Done
+	jmp Replace_Loop
+
+Replace_Done:
+	lea edx, offset user_string
+	call WriteString
+	call crlf
+	jmp Function_Input
+;=================================================================================================
+
+Upcase: ; Function 6: Capitalize letters in the string (non-alphabetic characters unchanged)
+	xor eax, eax
+	mov edx, offset Upcase_input_msg
+	call writeString
+	call crlf
+	mov esi, 0
+	mov edx, offset user_string
+	mov ecx, string_length
+
+Upcase_Loop:
+	mov ebx, [edx + esi]
+	cmp bl, 61h
+	jge Letter_Check_F6
+	inc edx
+	dec cl
+	jcxz Upcase_Done
+	jmp Upcase_Loop
+
+Letter_Check_F6:
+	cmp bl, 7Bh
+	jge Increment_F6
+	xor bl, 20h
+	mov [edx], bl
+	inc edx
+	dec cl
+	jcxz Upcase_Done
+	jmp Upcase_Loop
+	
+
+Increment_F6:
+	inc esi
+	dec cl
+	jcxz Upcase_Done
+	jmp Upcase_Loop
+	
+
+Upcase_Done:
+	lea edx, offset user_string
+	call WriteString
+	call crlf
+	jmp Function_Input
+	
+Downcase: ; Function 7: Make each letter lower case (non-alphabetic characters unchanged)
+
+	xor eax, eax
+	mov edx, offset Upcase_input_msg
+	call writeString
+	call crlf
+	mov edi, 0
+	mov esi, offset user_string
+	mov ecx, string_length
+
+Downcase_Loop:
+	mov ebx, [esi * 1]
+	cmp bl, 40h
+	jge Letter_Check_F7
+	cmp ebx, '0'
+	je Downcase_Done
+	inc esi
+	dec cl
+	jcxz Downcase_Done
+	jmp Downcase_Loop
+
+Letter_Check_F7:
+	cmp bl, 5Bh
+	jge Increment_F7
+	xor bl, 20h
+	mov [esi], bl
+	inc esi
+	dec cl
+	jmp Downcase_Loop
+
+Increment_F7:
+	inc esi
+	dec cl
+	jcxz Downcase_Done
+	jmp Downcase_Loop
+	
+
+Downcase_Done:
+	lea edx, offset user_string
+	call WriteString
+	call crlf
+	jmp Function_Input
+	
+Togglecase: ; Function 8: Toggle the case of each letter (non-alphabetic characters unchanged)
+
+	xor eax, eax
+	mov edx, offset Togglecase_input_msg
+	call writeString
+	call crlf
+	mov edi, 0
+	mov esi, offset user_string
+	mov ecx, string_length
+	push esi
+
+Togglecase_Loop:
+	mov ebx, [esi * 1]
+	cmp bl, 40h
+	jge Upper_Check_F8
+	inc esi
+	dec cl
+	jcxz Togglecase_Done
+	jmp Togglecase_Loop
+
+Upper_Check_F8:
+	cmp bl, 5Bh
+	jge Lower_Check_F8
+	xor bl, 20h
+	mov [esi], bl
+	inc esi
+	dec cl
+	jcxz Togglecase_Done
+	jmp Togglecase_Loop
+
+Lower_Check_F8:
+	cmp bl, 60h
+	jle Increment_F8
+	xor bl, 20h
+	mov [esi], bl
+	inc esi
+	dec cl
+	jcxz Togglecase_Done
+	jmp Togglecase_Loop
+
+
+Increment_F8:
+	inc esi
+	dec cl
+	jcxz Togglecase_Done
+	jmp Togglecase_Loop
+	
+
+Togglecase_Done:
+	lea edx, offset user_string
+	call WriteString
+	call crlf
+	jmp Function_Input
+
+Undo: ; Function 9: Undo the last function. (example assumes function 8 was the last function to modify the string)
+	pop eax
+	lea edx, [eax]
+	call WriteString
+	call crlf
+	jmp Function_Input
+	
+Finish: ; Function 999: exit program normally
+	invoke ExitProcess, 0
+
+
+
+
+main ENDP
+
+END main
